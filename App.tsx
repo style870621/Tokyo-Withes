@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Tab, BookingSubTab, ItineraryItem, FlightBooking, StayBooking, CarBooking, AttractionBooking, ShoppingItem, Expense } from './types';
 import { DATE_RANGE, MEMBERS, Icons, FLIGHT_DB, DEFAULT_PACKING } from './constants';
 // 修正後的引用路徑
-import { magicalCorrectLocation, estimateTransportTime } from './geminiService';
+import { magicalCorrectLocation, estimateTransportTime } from './services/geminiService';
 
 const storage = {
   get: <T,>(key: string, defaultValue: T): T => {
