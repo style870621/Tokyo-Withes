@@ -1,0 +1,8 @@
+{
+  "name": "東京小怪獸富士山巫師之旅",
+  "description": "2026 東京之旅專用，整合 Gemini 魔法校正、交通估算、登機證視覺化、行李清單與精準分帳系統。",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}

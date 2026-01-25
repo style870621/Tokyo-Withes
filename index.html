@@ -1,0 +1,58 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>東京小怪獸富士山巫師之旅 - Tokyo Wizard Pro+</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #fcfdfd;
+      --jp-red-dark: #7a0105;
+      --jp-red-bright: #ee463a;
+      --jp-gold: #eed696;
+      --jp-pink: #f4bbb2;
+      --text-main: #2C3E50;
+      --bg-interface: #FAF8F8;
+    }
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: var(--bg-interface);
+      color: var(--text-main);
+    }
+    .serif { font-family: 'Noto Serif TC', serif; }
+    .mono { font-family: 'Space Mono', monospace; }
+    .glass { 
+      background: rgba(255, 255, 255, 0.85); 
+      backdrop-filter: blur(12px); 
+      -webkit-backdrop-filter: blur(12px); 
+    }
+    /* Hide scrollbar */
+    ::-webkit-scrollbar { display: none; }
+    * { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
