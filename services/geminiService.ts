@@ -2,59 +2,60 @@
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * 核心：獲取 API Key
- * 在此環境中，API Key 應由系統自動注入 process.env.API_KEY
+ * 獲取並檢查 API Key
  */
-const getApiKey = () => {
+const checkKey = () => {
   const key = process.env.API_KEY;
-  if (!key || key === "undefined" || key.length < 10) {
-    console.error("Gemini 魔法失效：找不到有效的 API_KEY。請檢查環境變數設定。");
+  if (!key || key === "undefined") {
+    console.error("Gemini 密語錯誤：找不到有效的 API_KEY，請檢查 Vercel 環境變數設定。");
     return null;
   }
   return key;
 };
 
 /**
- * 功能 1：校正地標名稱
+ * 功能 1：魔法校正地標
  */
 export const magicalCorrectLocation = async (query: string): Promise<string> => {
-  const apiKey = getApiKey();
+  const apiKey = checkKey();
   if (!apiKey) return query;
 
+  // 嚴格遵守 SDK 初始化規範
   const ai = new GoogleGenAI({ apiKey });
+  
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `請校正此地標：「${query}」`,
+      contents: `請校正此地標名稱：「${query}」`,
       config: {
-        systemInstruction: "你是一個日本旅遊專家。請將輸入的模糊景點、地址或地標名稱校正為 Google 地圖最容易搜尋到的完整、正確地標名稱（繁體中文或日文混用）。只需回傳校正後的名稱，不要包含任何解釋、標點符號或引號。",
+        systemInstruction: "你是一個日本旅遊巫師。請將輸入的地名、景點或地址校正為 Google 地圖最易搜尋到的正式名稱。只需回傳名稱，不要有標點符號、括號或引號。如果無法校正，請回傳原始內容。",
         temperature: 0.1,
       },
     });
 
-    // 注意：新版 SDK 中 text 是屬性而非方法
     const result = response.text?.trim();
     return result || query;
   } catch (error) {
-    console.error("Gemini Location Error:", error);
+    console.error("Magic Correction Error:", error);
     return query;
   }
 };
 
 /**
- * 功能 2：自動預估交通時長
+ * 功能 2：魔法估算交通時長
  */
 export const estimateTransportTime = async (origin: string, destination: string, mode: string): Promise<string> => {
-  const apiKey = getApiKey();
+  const apiKey = checkKey();
   if (!apiKey) return "30分鐘";
 
   const ai = new GoogleGenAI({ apiKey });
+  
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `起點：${origin}，終點：${destination}，方式：${mode}`,
+      contents: `從「${origin}」到「${destination}」，使用方式：${mode}`,
       config: {
-        systemInstruction: "你是一個日本交通分析師。請估計日本境內兩地間的交通時間。只需回傳一個數字和單位（例如：35分鐘），不要有其他文字。",
+        systemInstruction: "你是一個日本交通占卜師。請估算日本境內兩地間的交通時間（含等待）。只需回傳數字與單位，例如「45分鐘」或「1小時20分鐘」，不要回傳其他贅詞。",
         temperature: 0.1,
       },
     });
@@ -62,7 +63,7 @@ export const estimateTransportTime = async (origin: string, destination: string,
     const result = response.text?.trim();
     return result || "30分鐘";
   } catch (error) {
-    console.error("Gemini Transport Error:", error);
+    console.error("Magic Transport Error:", error);
     return "30分鐘";
   }
 };
