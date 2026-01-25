@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Tab, BookingSubTab, ItineraryItem, FlightBooking, StayBooking, CarBooking, AttractionBooking, ShoppingItem, Expense } from './types';
 import { DATE_RANGE, MEMBERS, Icons, FLIGHT_DB, DEFAULT_PACKING } from './constants';
-import { magicalCorrectLocation, estimateTransportTime, getApiKeyStatus, testConnection } from './geminiService';
+import { magicalCorrectLocation, estimateTransportTime, getApiKeyStatus, testConnection } from './services/geminiService';
 
 const storage = {
   get: <T,>(key: string, defaultValue: T): T => {
