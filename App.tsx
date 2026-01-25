@@ -2,8 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Tab, BookingSubTab, ItineraryItem, FlightBooking, StayBooking, CarBooking, AttractionBooking, ShoppingItem, Expense } from './types';
 import { DATE_RANGE, MEMBERS, Icons, FLIGHT_DB, DEFAULT_PACKING } from './constants';
-// 修正後的引用路徑
-import { magicalCorrectLocation, estimateTransportTime } from './services/geminiService';
+import { magicalCorrectLocation, estimateTransportTime, getApiKeyStatus, testConnection } from './geminiService';
 
 const storage = {
   get: <T,>(key: string, defaultValue: T): T => {
@@ -87,6 +86,7 @@ const App: React.FC = () => {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [syncString, setSyncString] = useState('');
+  const [testResult, setTestResult] = useState<{ ok?: boolean; msg?: string }>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -216,6 +216,12 @@ const App: React.FC = () => {
         setSyncString('');
       }
     } catch (e) { alert('❌ 咒語無效，請確認是否複製完整。'); }
+  };
+
+  const handleTestMagic = async () => {
+    setTestResult({ msg: "正在連線測試..." });
+    const res = await testConnection();
+    setTestResult(res);
   };
 
   const renderMultiMember = (selected: string[], onChange: (val: string[]) => void) => (
@@ -473,6 +479,46 @@ const App: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">{MEMBERS.map(m => (<button key={m} onClick={() => setCurrentUser(m)} className={`py-4 rounded-2xl font-bold text-sm transition-all ${currentUser === m ? 'bg-[#0E1A40] text-white shadow-xl border border-[#946A2D]' : 'bg-[#f5f5f5] text-[#0E1A40]'}`}>{m}</button>))}</div>
             </div>
 
+            {/* API 診斷面板 */}
+            <div className="bg-white rounded-[2.5rem] p-6 border-l-8 border-[#0E1A40] shadow-sm space-y-4">
+              <label className="text-[10px] font-bold text-[#0E1A40] uppercase tracking-widest px-2 flex items-center gap-2">🔮 魔法金鑰診斷</label>
+              {(() => {
+                const status = getApiKeyStatus();
+                return (
+                  <div className="bg-[#f5f5f5] p-4 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-gray-500">金鑰狀態:</span>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${status.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status.msg}</span>
+                    </div>
+                    {status.len && (
+                      <div className="grid grid-cols-2 gap-2 border-t border-gray-200 pt-2">
+                        <div>
+                          <span className="text-[8px] text-gray-400 block">長度</span>
+                          <span className="text-[10px] font-mono">{status.len} 字元</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[8px] text-gray-400 block">特徵</span>
+                          <span className="text-[10px] font-mono">{status.prefix}...{status.suffix}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 新增測試按鈕 */}
+                    <div className="pt-2">
+                      <button onClick={handleTestMagic} className="w-full bg-[#0E1A40] text-white py-3 rounded-xl text-[10px] font-bold shadow-md active:scale-95 transition-all">🪄 測試連線 (最準確)</button>
+                      {testResult.msg && (
+                        <div className={`mt-2 p-3 rounded-xl text-[9px] font-bold leading-relaxed border ${testResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
+                          {testResult.msg}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <p className="text-[8px] text-gray-400 mt-2 leading-tight">※ 如果金鑰無效，請至 Google AI Studio 重新產生，並在 Vercel 重新 Deploy。</p>
+                  </div>
+                );
+              })()}
+            </div>
+
             <div className="bg-[#0E1A40] rounded-[2.5rem] p-6 border border-[#946A2D]/30 shadow-xl space-y-4">
               <label className="text-[10px] font-bold text-[#946A2D] uppercase tracking-widest px-2 flex items-center gap-2"><Icons.Magic /> 魔法數據同步 (簡易共編)</label>
               <p className="text-[10px] text-white/60 px-2 leading-relaxed">您可以將全部行程與分帳數據打包成一段咒語。將咒語傳給朋友，他們貼上後即可同步。這是目前手動共編的最快方法！</p>
@@ -519,15 +565,17 @@ const App: React.FC = () => {
                     <div><label className="text-[10px] font-bold text-gray-400 mb-1 block">停留時間 (HH:MM)</label><input type="text" placeholder="01:30" value={editData.stayDuration} onChange={e => setEditData({ ...editData, stayDuration: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
                   </div>
                   <input type="text" placeholder="景點名稱" value={editData.displayName} onChange={e => setEditData({ ...editData, displayName: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
-                  <div className="relative">
-                    <input type="text" placeholder="詳細地點或地址" value={editData.actualLocation} onChange={e => setEditData({ ...editData, actualLocation: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-12" />
+                  <div className="relative group">
+                    <input type="text" placeholder="詳細地點或地址" value={editData.actualLocation} onChange={e => setEditData({ ...editData, actualLocation: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
                     <button onClick={async () => {
                       if (!editData.actualLocation) return;
                       setIsMagicLoading(true);
                       const res = await magicalCorrectLocation(editData.actualLocation);
                       setEditData({ ...editData, actualLocation: res, mapQuery: res });
                       setIsMagicLoading(false);
-                    }} className="absolute right-2 top-2 bottom-2 aspect-square bg-[#0E1A40] text-white rounded-xl flex items-center justify-center"><Icons.Magic /></button>
+                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
+                    </button>
                   </div>
                   <textarea placeholder="魔法筆記 (文字備註欄)" value={editData.note} onChange={e => setEditData({ ...editData, note: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold h-24 border-none outline-none focus:ring-2 ring-[#0E1A40]/10" />
                 </>
@@ -574,14 +622,16 @@ const App: React.FC = () => {
                     <div><label className="text-[10px] font-bold mb-1 block">退房時間 (24h)</label><input type="time" value={editData.checkOutTime} onChange={e => setEditData({ ...editData, checkOutTime: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
                   </div>
                   <div className="relative">
-                    <input type="text" placeholder="飯店地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-12" />
+                    <input type="text" placeholder="飯店地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
                     <button onClick={async () => {
                       if (!editData.address) return;
                       setIsMagicLoading(true);
                       const res = await magicalCorrectLocation(editData.address);
                       setEditData({ ...editData, address: res });
                       setIsMagicLoading(false);
-                    }} className="absolute right-2 top-2 bottom-2 aspect-square bg-[#0E1A40] text-white rounded-xl flex items-center justify-center"><Icons.Magic /></button>
+                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
+                    </button>
                   </div>
                   <textarea placeholder="飯店備註" value={editData.note} onChange={e => setEditData({ ...editData, note: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold h-20" />
                 </>
@@ -598,14 +648,16 @@ const App: React.FC = () => {
                     <div><label className="text-[10px] font-bold mb-1 block">還車時間</label><input type="time" value={editData.returnTime} onChange={e => setEditData({ ...editData, returnTime: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
                   </div>
                   <div className="relative">
-                    <input type="text" placeholder="取車地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-12" />
+                    <input type="text" placeholder="取車地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
                     <button onClick={async () => {
                       if (!editData.address) return;
                       setIsMagicLoading(true);
                       const res = await magicalCorrectLocation(editData.address);
                       setEditData({ ...editData, address: res });
                       setIsMagicLoading(false);
-                    }} className="absolute right-2 top-2 bottom-2 aspect-square bg-[#0E1A40] text-white rounded-xl flex items-center justify-center"><Icons.Magic /></button>
+                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
+                    </button>
                   </div>
                   <textarea placeholder="注意訂單事項" value={editData.note} onChange={e => setEditData({ ...editData, note: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold h-20" />
                   <div className="flex gap-4 items-center">
@@ -626,14 +678,16 @@ const App: React.FC = () => {
                     <div><label className="text-[10px] font-bold mb-1 block">預約時間 (24h)</label><input type="time" value={editData.time} onChange={e => setEditData({ ...editData, time: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
                   </div>
                   <div className="relative">
-                    <input type="text" placeholder="地點/地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-12" />
+                    <input type="text" placeholder="地點/地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
                     <button onClick={async () => {
                       if (!editData.address) return;
                       setIsMagicLoading(true);
                       const res = await magicalCorrectLocation(editData.address);
                       setEditData({ ...editData, address: res });
                       setIsMagicLoading(false);
-                    }} className="absolute right-2 top-2 bottom-2 aspect-square bg-[#0E1A40] text-white rounded-xl flex items-center justify-center"><Icons.Magic /></button>
+                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
+                    </button>
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-gray-400">上傳訂購憑證 (多檔)</label>
