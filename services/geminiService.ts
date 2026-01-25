@@ -7,12 +7,8 @@ import { GoogleGenAI } from "@google/genai";
 const getCleanApiKey = () => {
   let rawKey = process.env.API_KEY;
   
-  // 偵錯日誌：讓使用者知道目前讀取到的原始值是什麼（前 5 碼）
   if (rawKey) {
-    const debugStr = rawKey.substring(0, 5);
-    console.log(`[Gemini Debug] 偵測到環境變數，開頭為: ${debugStr}...`);
-  } else {
-    console.warn(`[Gemini Debug] ❌ 完全找不到 process.env.API_KEY`);
+    console.log(`[Gemini Debug] 讀取到原始變數，長度: ${rawKey.length}`);
   }
 
   if (!rawKey || rawKey === "undefined" || rawKey.length < 10) {
@@ -21,10 +17,6 @@ const getCleanApiKey = () => {
 
   // 徹底移除引號、空白、換行符號
   const cleanKey = rawKey.replace(/['"\s\n\r]+/g, '').trim();
-  
-  // 最終檢查日誌
-  console.log(`[Gemini Debug] 清洗後金鑰長度: ${cleanKey.length}, 開頭: ${cleanKey.substring(0, 4)}, 結尾: ${cleanKey.substring(cleanKey.length - 4)}`);
-  
   return cleanKey;
 };
 
@@ -33,22 +25,53 @@ const getCleanApiKey = () => {
  */
 export const getApiKeyStatus = () => {
   const key = getCleanApiKey();
-  if (!key) return { ok: false, msg: "未偵測到 API_KEY" };
+  if (!key) return { ok: false, msg: "環境變數 API_KEY 為空或未設定" };
+  
+  // 檢查是否包含不該出現的字元（例如引號或 process.env 字樣）
+  const hasQuotes = /['"]/.test(key);
+  const isTemplateError = key.includes("process.env");
+
+  if (isTemplateError) return { ok: false, msg: "設定錯誤：變數值被設成了程式碼文字" };
+  if (hasQuotes) return { ok: false, msg: "格式錯誤：金鑰內含有引號" };
+
   return {
     ok: key.startsWith("AIza"),
     len: key.length,
     prefix: key.substring(0, 4),
     suffix: key.substring(key.length - 4),
-    msg: key.startsWith("AIza") ? "格式正確" : "格式錯誤 (應為 AIza 開頭)"
+    msg: key.startsWith("AIza") ? "格式初步檢查正常" : "格式錯誤 (應為 AIza 開頭)"
   };
+};
+
+/**
+ * 測試連線並回傳詳細錯誤
+ */
+export const testConnection = async (): Promise<{ ok: boolean; msg: string }> => {
+  const apiKey = getCleanApiKey();
+  if (!apiKey) return { ok: false, msg: "找不到金鑰" };
+
+  const ai = new GoogleGenAI({ apiKey });
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{ parts: [{ text: "hi" }] }],
+    });
+    if (response.text) {
+      return { ok: true, msg: "連線成功！魔法運作正常。" };
+    }
+    return { ok: false, msg: "連線成功但無回傳文字" };
+  } catch (error: any) {
+    console.error("[Gemini Debug] 測試失敗:", error);
+    const errMsg = error.message || "";
+    if (errMsg.includes("API key not valid")) return { ok: false, msg: "❌ 金鑰無效：請檢查是否複製完整或已被禁用" };
+    if (errMsg.includes("model not found")) return { ok: false, msg: "❌ 模型錯誤：請確認模型名稱正確" };
+    return { ok: false, msg: `❌ 錯誤: ${errMsg.substring(0, 50)}...` };
+  }
 };
 
 export const magicalCorrectLocation = async (query: string): Promise<string> => {
   const apiKey = getCleanApiKey();
-  if (!apiKey) {
-    console.error("[Gemini Debug] 無法執行校正：金鑰不存在。");
-    return query;
-  }
+  if (!apiKey) return query;
 
   const ai = new GoogleGenAI({ apiKey });
   try {
@@ -60,10 +83,9 @@ export const magicalCorrectLocation = async (query: string): Promise<string> => 
         temperature: 0.1,
       },
     });
-    console.log("[Gemini Debug] 魔法校正成功回傳！");
     return response.text?.trim() || query;
-  } catch (error: any) {
-    console.error("[Gemini Debug] API 報錯內容:", error);
+  } catch (error) {
+    console.error("[Gemini Debug] 校正錯誤:", error);
     return query;
   }
 };
@@ -84,7 +106,7 @@ export const estimateTransportTime = async (origin: string, destination: string,
     });
     return response.text?.trim() || "30分鐘";
   } catch (error) {
-    console.error("[Gemini Debug] 交通估算報錯:", error);
+    console.error("[Gemini Debug] 交通估算錯誤:", error);
     return "30分鐘";
   }
 };
