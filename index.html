@@ -4,9 +4,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>東京小怪獸富士山巫師之旅 </title>
+  <title>東京小怪獸富士山巫師之旅 - Tokyo Wizard Pro+</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script>
+    // 防止 process 未定義導致的畫面空白
+    window.process = window.process || { env: {} };
+  </script>
   <style>
     :root {
       --bg-main: #fcfdfd;
@@ -21,6 +25,8 @@
       font-family: 'Noto Sans TC', sans-serif;
       background-color: var(--bg-interface);
       color: var(--text-main);
+      margin: 0;
+      padding: 0;
     }
     .serif { font-family: 'Noto Serif TC', serif; }
     .mono { font-family: 'Space Mono', monospace; }
@@ -45,6 +51,7 @@
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
     "@google/genai": "https://esm.sh/@google/genai@latest"
   }
 }
@@ -52,5 +59,6 @@
 </head>
 <body>
   <div id="root"></div>
+  <script type="module" src="index.tsx"></script>
 </body>
 </html>
