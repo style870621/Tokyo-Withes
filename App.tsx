@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Tab, BookingSubTab, ItineraryItem, FlightBooking, StayBooking, CarBooking, AttractionBooking, ShoppingItem, Expense } from './types';
 import { DATE_RANGE, MEMBERS, Icons, FLIGHT_DB, DEFAULT_PACKING } from './constants';
-import { magicalCorrectLocation, estimateTransportTime } from './services/geminiService';
+// 修正後的引用路徑
+import { magicalCorrectLocation, estimateTransportTime } from './geminiService';
 
 const storage = {
   get: <T,>(key: string, defaultValue: T): T => {
@@ -85,6 +86,7 @@ const App: React.FC = () => {
   const [editData, setEditData] = useState<any>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [viewImage, setViewImage] = useState<string | null>(null);
+  const [syncString, setSyncString] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -186,6 +188,34 @@ const App: React.FC = () => {
       setExpenses(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, { ...data, createdAt: Date.now() }]);
     }
     setShowModal(null);
+  };
+
+  const handleExport = () => {
+    const fullData = { itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked };
+    const str = btoa(unescape(encodeURIComponent(JSON.stringify(fullData))));
+    setSyncString(str);
+    navigator.clipboard.writeText(str);
+    alert('🧙‍♂️ 咒語已複製！請傳給朋友貼上。');
+  };
+
+  const handleImport = () => {
+    if (!syncString) return;
+    try {
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(syncString))));
+      if (confirm('⚠️ 貼上咒語將會覆蓋你手機目前的全部行程資料，確定要施展嗎？')) {
+        if (decoded.itinerary) setItinerary(decoded.itinerary);
+        if (decoded.flights) setFlights(decoded.flights);
+        if (decoded.stays) setStays(decoded.stays);
+        if (decoded.cars) setCars(decoded.cars);
+        if (decoded.attractions) setAttractions(decoded.attractions);
+        if (decoded.shopping) setShopping(decoded.shopping);
+        if (decoded.expenses) setExpenses(decoded.expenses);
+        if (decoded.userPackingLists) setUserPackingLists(decoded.userPackingLists);
+        if (decoded.packingChecked) setPackingChecked(decoded.packingChecked);
+        alert('✨ 魔法同步成功！');
+        setSyncString('');
+      }
+    } catch (e) { alert('❌ 咒語無效，請確認是否複製完整。'); }
   };
 
   const renderMultiMember = (selected: string[], onChange: (val: string[]) => void) => (
@@ -435,10 +465,24 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'settings' && (
-          <div className="mt-10 animate-fade-in space-y-10">
+          <div className="mt-6 animate-fade-in space-y-6">
             <div className="text-center"><div className="w-28 h-28 bg-[#946A2D]/20 rounded-full mx-auto flex items-center justify-center text-[#0E1A40] mb-4 border-8 border-white shadow-2xl"><Icons.User /></div><h2 className="serif text-3xl font-bold text-[#0E1A40]">{currentUser}</h2></div>
-            <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm space-y-4">
-              <div className="grid grid-cols-2 gap-3">{MEMBERS.map(m => (<button key={m} onClick={() => setCurrentUser(m)} className={`py-5 rounded-3xl font-bold text-sm transition-all ${currentUser === m ? 'bg-[#0E1A40] text-white shadow-xl border border-[#946A2D]' : 'bg-[#f5f5f5] text-[#0E1A40]'}`}>{m}</button>))}</div>
+            
+            <div className="bg-white rounded-[2.5rem] p-6 border border-gray-100 shadow-sm space-y-4">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2">切換巫師身份</label>
+              <div className="grid grid-cols-2 gap-3">{MEMBERS.map(m => (<button key={m} onClick={() => setCurrentUser(m)} className={`py-4 rounded-2xl font-bold text-sm transition-all ${currentUser === m ? 'bg-[#0E1A40] text-white shadow-xl border border-[#946A2D]' : 'bg-[#f5f5f5] text-[#0E1A40]'}`}>{m}</button>))}</div>
+            </div>
+
+            <div className="bg-[#0E1A40] rounded-[2.5rem] p-6 border border-[#946A2D]/30 shadow-xl space-y-4">
+              <label className="text-[10px] font-bold text-[#946A2D] uppercase tracking-widest px-2 flex items-center gap-2"><Icons.Magic /> 魔法數據同步 (簡易共編)</label>
+              <p className="text-[10px] text-white/60 px-2 leading-relaxed">您可以將全部行程與分帳數據打包成一段咒語。將咒語傳給朋友，他們貼上後即可同步。這是目前手動共編的最快方法！</p>
+              <div className="flex flex-col gap-3">
+                <button onClick={handleExport} className="w-full bg-[#946A2D] text-[#0E1A40] py-4 rounded-2xl font-bold text-xs shadow-lg uppercase tracking-widest transition-all active:scale-95">🪄 產生並複製咒語 (匯出)</button>
+                <div className="relative">
+                  <textarea value={syncString} onChange={(e) => setSyncString(e.target.value)} placeholder="在此貼上咒語..." className="w-full h-24 bg-white/10 border border-white/20 rounded-2xl p-4 text-white text-[10px] font-mono focus:ring-1 ring-[#946A2D] outline-none" />
+                  <button onClick={handleImport} className="absolute bottom-2 right-2 bg-white text-[#0E1A40] px-4 py-2 rounded-xl font-bold text-[10px] shadow-md transition-all active:scale-90">施展咒語 (匯入)</button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -693,10 +737,10 @@ const App: React.FC = () => {
                     {/* 團體總金額摘要 */}
                     <div className="mb-6 p-4 bg-[#fcfdfd] border border-gray-100 rounded-2xl text-center">
                       <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">團體總金額</p>
-                      <div className="text-xl font-bold text-[#0E1A40]">
+                      <div className="text-2xl font-bold text-[#0E1A40]">
                         $ {Math.round(expenses.reduce((s, e) => s + (e.currency === 'JPY' ? e.amount * exchangeRate : e.amount), 0)).toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-gray-400 font-mono">
+                      <div className="text-[10px] text-gray-400 font-mono mt-1">
                         ¥ {Math.round(expenses.reduce((s, e) => s + (e.currency === 'JPY' ? e.amount : e.amount / exchangeRate), 0)).toLocaleString()}
                       </div>
                     </div>
@@ -717,14 +761,14 @@ const App: React.FC = () => {
                     </h4>
                     {/* 個人總金額摘要 */}
                     <div className="mb-6 p-4 bg-[#fcfdfd] border border-gray-100 rounded-2xl text-center">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">個人總金額</p>
-                      <div className="text-xl font-bold text-[#0E1A40]">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">個人應付金額</p>
+                      <div className="text-2xl font-bold text-[#0E1A40]">
                         $ {Math.round(expenses.reduce((s, e) => {
                           const split = e.splitters.find(x => x.name === currentUser);
                           return s + (split ? (e.currency === 'JPY' ? split.amount * exchangeRate : split.amount) : 0);
                         }, 0)).toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-gray-400 font-mono">
+                      <div className="text-[10px] text-gray-400 font-mono mt-1">
                         ¥ {Math.round(expenses.reduce((s, e) => {
                           const split = e.splitters.find(x => x.name === currentUser);
                           return s + (split ? (e.currency === 'JPY' ? split.amount : split.amount / exchangeRate) : 0);
@@ -753,7 +797,7 @@ const App: React.FC = () => {
                       {getSettlements().map((s, idx) => (
                         <div key={idx} className="bg-gray-50 p-5 rounded-[1.5rem] flex justify-between items-center border border-dashed border-gray-200 shadow-sm">
                           <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-400 font-bold uppercase mb-1">欠款巫師</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase mb-1">付款流向</span>
                             <span className="font-bold text-[#0E1A40] text-sm">{s.from} ➜ {s.to}</span>
                           </div>
                           <div className="text-right">
