@@ -15,6 +15,7 @@ export const FLIGHT_DB: Record<string, any> = {
   'GK12': { airline: '捷星航空', depCity: 'TPE', arrCity: 'NRT', depTime: '02:05', arrTime: '06:10', depTerminal: 'T1', arrTerminal: 'T3' },
   'GK11': { airline: '捷星航空', depCity: 'NRT', arrCity: 'TPE', depTime: '22:15', arrTime: '01:25', depTerminal: 'T3', arrTerminal: 'T1' },
   'TR896': { airline: '酷航', depCity: 'TPE', arrCity: 'NRT', depTime: '11:35', arrTime: '15:45', depTerminal: 'T1', arrTerminal: 'T2' },
+  'TR898': { airline: '酷航', depCity: 'TPE', arrCity: 'NRT', depTime: '06:40', arrTime: '10:45', depTerminal: 'T1', arrTerminal: 'T2' },
   'TR899': { airline: '酷航', depCity: 'NRT', arrCity: 'TPE', depTime: '11:45', arrTime: '14:45', depTerminal: 'T2', arrTerminal: 'T1' }
 };
 
