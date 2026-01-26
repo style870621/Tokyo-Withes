@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Tab, BookingSubTab, ItineraryItem, FlightBooking, StayBooking, CarBooking, AttractionBooking, ShoppingItem, Expense } from './types';
 import { DATE_RANGE, MEMBERS, Icons, FLIGHT_DB, DEFAULT_PACKING } from './constants';
-import { magicalCorrectLocation, estimateTransportTime, getApiKeyStatus, testConnection } from './services/geminiService';
+import { magicalCorrectLocation, estimateTransportTime, getApiKeyStatus, testConnection } from './geminiService';
+import { pushToRoom, subscribeToRoom } from './firebaseService';
 
 const storage = {
   get: <T,>(key: string, defaultValue: T): T => {
@@ -78,6 +79,11 @@ const App: React.FC = () => {
   const [packingChecked, setPackingChecked] = useState<Record<string, string[]>>(storage.get('packing_checked', {}));
   const [exchangeRate, setExchangeRate] = useState(0.215);
 
+  // --- 即時同步核心設定 ---
+  const roomId = 'tokyo-witches'; // 固定所有人的房間 ID
+  const [isLiveSync, setIsLiveSync] = useState(storage.get('magic_live_sync', true)); // 預設開啟
+  const remoteUpdateRef = useRef(false);
+
   const [jpyInput, setJpyInput] = useState<string>('');
   const [twdInput, setTwdInput] = useState<string>('');
   const [isMagicLoading, setIsMagicLoading] = useState(false);
@@ -90,6 +96,7 @@ const App: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 1. 本地儲存
   useEffect(() => {
     storage.set('itinerary_muggle', itinerary);
     storage.set('flights_muggle', flights);
@@ -101,7 +108,44 @@ const App: React.FC = () => {
     storage.set('wizard_packing_lists', userPackingLists);
     storage.set('packing_checked', packingChecked);
     storage.set('wizard_user', currentUser);
-  }, [itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked, currentUser]);
+    storage.set('magic_live_sync', isLiveSync);
+  }, [itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked, currentUser, isLiveSync]);
+
+  // 2. 即時同步：當本地資料變動時推送 (Debounced)
+  useEffect(() => {
+    if (!isLiveSync) return;
+    if (remoteUpdateRef.current) {
+      remoteUpdateRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const allData = { itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked };
+      pushToRoom(roomId, allData);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked, isLiveSync]);
+
+  // 3. 即時同步：監聽雲端變動
+  useEffect(() => {
+    if (!isLiveSync) return;
+
+    const unsubscribe = subscribeToRoom(roomId, (remoteData) => {
+      remoteUpdateRef.current = true;
+      if (remoteData.itinerary) setItinerary(remoteData.itinerary);
+      if (remoteData.flights) setFlights(remoteData.flights);
+      if (remoteData.stays) setStays(remoteData.stays);
+      if (remoteData.cars) setCars(remoteData.cars);
+      if (remoteData.attractions) setAttractions(remoteData.attractions);
+      if (remoteData.shopping) setShopping(remoteData.shopping);
+      if (remoteData.expenses) setExpenses(remoteData.expenses);
+      if (remoteData.userPackingLists) setUserPackingLists(remoteData.userPackingLists);
+      if (remoteData.packingChecked) setPackingChecked(remoteData.packingChecked);
+    });
+
+    return () => unsubscribe();
+  }, [isLiveSync]);
 
   useEffect(() => {
     fetch('https://open.er-api.com/v6/latest/JPY')
@@ -343,28 +387,6 @@ const App: React.FC = () => {
                    {expandedItems.has(s.id) && <div className="absolute inset-0 bg-white/90 rounded-3xl flex items-center justify-center gap-8 animate-fade-in"><button onClick={(e) => { e.stopPropagation(); setEditData(s); setShowModal('stay'); }} className="text-[#0E1A40] scale-150"><Icons.Pencil /></button><button onClick={(e) => { e.stopPropagation(); setStays(stays.filter(x => x.id !== s.id)); }} className="text-[#ee463a] scale-150"><Icons.Trash /></button></div>}
                 </div>
               ))}
-              {bookingTab === 'cars' && cars.map(c => (
-                <div key={c.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative group" onClick={() => handleToggleAction(c.id)}>
-                   <h4 className="font-bold text-[#0E1A40] text-lg serif">{c.company}</h4><p className="text-[10px] text-gray-400">{c.pickupDate} 取車 • {c.address}</p>
-                   {c.voucher && <img src={c.voucher} className="mt-2 w-16 h-16 rounded-xl object-cover" onClick={() => setViewImage(c.voucher!)} />}
-                   {expandedItems.has(c.id) && <div className="absolute inset-0 bg-white/90 rounded-3xl flex items-center justify-center gap-8 animate-fade-in"><button onClick={(e) => { e.stopPropagation(); setEditData(c); setShowModal('car'); }} className="text-[#0E1A40] scale-150"><Icons.Pencil /></button><button onClick={(e) => { e.stopPropagation(); setCars(cars.filter(x => x.id !== c.id)); }} className="text-[#ee463a] scale-150"><Icons.Trash /></button></div>}
-                </div>
-              ))}
-              {bookingTab === 'attractions' && attractions.map(a => (
-                <div key={a.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative group" onClick={() => handleToggleAction(a.id)}>
-                   <div className="flex gap-1 mb-2 border-b border-gray-100 pb-2">{a.persons.map(p => <span key={p} className="text-[7px] bg-[#946A2D] text-white px-2 py-0.5 rounded-full">{p}</span>)}</div>
-                   <h4 className="font-bold text-[#0E1A40] text-lg serif">{a.name}</h4><p className="text-[10px] text-gray-400">{a.date} {a.time} • {a.address}</p>
-                   <div className="flex gap-2 mt-2">
-                     {a.vouchers.map((v, i) => (
-                       <div key={i} className="relative w-12 h-12 rounded-lg overflow-hidden border" onClick={(e) => { e.stopPropagation(); setViewImage(v); }}>
-                         <img src={v} className="w-full h-full object-cover" />
-                         <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[8px] px-1 font-bold">{i + 1}</span>
-                       </div>
-                     ))}
-                   </div>
-                   {expandedItems.has(a.id) && <div className="absolute inset-0 bg-white/90 rounded-3xl flex items-center justify-center gap-8 animate-fade-in"><button onClick={(e) => { e.stopPropagation(); setEditData(a); setShowModal('attraction'); }} className="text-[#0E1A40] scale-150"><Icons.Pencil /></button><button onClick={(e) => { e.stopPropagation(); setAttractions(attractions.filter(x => x.id !== a.id)); }} className="text-[#ee463a] scale-150"><Icons.Trash /></button></div>}
-                </div>
-              ))}
               {bookingTab === 'shopping' && shopping.map(s => (
                 <div key={s.id} className={`p-5 rounded-3xl border flex items-center gap-4 group relative ${s.done ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-100 shadow-sm'}`} onClick={() => handleToggleAction(s.id)}>
                    {s.photo && <img src={s.photo} className="w-14 h-14 rounded-2xl object-cover border border-gray-100" />}
@@ -479,7 +501,26 @@ const App: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">{MEMBERS.map(m => (<button key={m} onClick={() => setCurrentUser(m)} className={`py-4 rounded-2xl font-bold text-sm transition-all ${currentUser === m ? 'bg-[#0E1A40] text-white shadow-xl border border-[#946A2D]' : 'bg-[#f5f5f5] text-[#0E1A40]'}`}>{m}</button>))}</div>
             </div>
 
-            {/* API 診斷面板 */}
+            {/* 優化後的即時同步魔法區塊 */}
+            <div className="bg-[#0E1A40] rounded-[2.5rem] p-6 border border-[#946A2D]/30 shadow-xl space-y-4">
+              <label className="text-[10px] font-bold text-[#946A2D] uppercase tracking-widest px-2 flex items-center gap-2"><Icons.Magic /> 團隊同步魔法 (Live Sync)</label>
+              <div className="bg-white/5 p-4 rounded-2xl flex items-center justify-between border border-white/10">
+                <div>
+                   <p className="text-[11px] text-white font-bold">魔法頻道：<span className="text-[#946A2D]">{roomId}</span></p>
+                   <p className="text-[8px] text-white/40 mt-1 uppercase">自動同步模式已啟動</p>
+                </div>
+                <button 
+                  onClick={() => setIsLiveSync(!isLiveSync)} 
+                  className={`px-4 py-2 rounded-full text-[9px] font-bold shadow-lg transition-all active:scale-95 ${isLiveSync ? 'bg-[#946A2D] text-[#0E1A40]' : 'bg-gray-700 text-gray-300'}`}
+                >
+                  {isLiveSync ? '⚡️ 同步中' : '❌ 離線'}
+                </button>
+              </div>
+              <p className="text-[9px] text-white/50 px-2 italic leading-relaxed">
+                * 這是專屬於你們的私密頻道。只要所有人都打開同步開關，行程、支出與行李狀態將會全自動跨裝置更新。
+              </p>
+            </div>
+
             <div className="bg-white rounded-[2.5rem] p-6 border-l-8 border-[#0E1A40] shadow-sm space-y-4">
               <label className="text-[10px] font-bold text-[#0E1A40] uppercase tracking-widest px-2 flex items-center gap-2">🔮 魔法金鑰診斷</label>
               {(() => {
@@ -490,20 +531,6 @@ const App: React.FC = () => {
                       <span className="text-[10px] font-bold text-gray-500">金鑰狀態:</span>
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${status.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status.msg}</span>
                     </div>
-                    {status.len && (
-                      <div className="grid grid-cols-2 gap-2 border-t border-gray-200 pt-2">
-                        <div>
-                          <span className="text-[8px] text-gray-400 block">長度</span>
-                          <span className="text-[10px] font-mono">{status.len} 字元</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[8px] text-gray-400 block">特徵</span>
-                          <span className="text-[10px] font-mono">{status.prefix}...{status.suffix}</span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 新增測試按鈕 */}
                     <div className="pt-2">
                       <button onClick={handleTestMagic} className="w-full bg-[#0E1A40] text-white py-3 rounded-xl text-[10px] font-bold shadow-md active:scale-95 transition-all">🪄 測試連線 (最準確)</button>
                       {testResult.msg && (
@@ -512,21 +539,18 @@ const App: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    
-                    <p className="text-[8px] text-gray-400 mt-2 leading-tight">※ 如果金鑰無效，請至 Google AI Studio 重新產生，並在 Vercel 重新 Deploy。</p>
                   </div>
                 );
               })()}
             </div>
 
-            <div className="bg-[#0E1A40] rounded-[2.5rem] p-6 border border-[#946A2D]/30 shadow-xl space-y-4">
-              <label className="text-[10px] font-bold text-[#946A2D] uppercase tracking-widest px-2 flex items-center gap-2"><Icons.Magic /> 魔法數據同步 (簡易共編)</label>
-              <p className="text-[10px] text-white/60 px-2 leading-relaxed">您可以將全部行程與分帳數據打包成一段咒語。將咒語傳給朋友，他們貼上後即可同步。這是目前手動共編的最快方法！</p>
+            <div className="bg-white rounded-[2.5rem] p-6 border border-gray-100 shadow-sm space-y-4">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 flex items-center gap-2">📦 備份咒語 (手動備份用)</label>
               <div className="flex flex-col gap-3">
-                <button onClick={handleExport} className="w-full bg-[#946A2D] text-[#0E1A40] py-4 rounded-2xl font-bold text-xs shadow-lg uppercase tracking-widest transition-all active:scale-95">🪄 產生並複製咒語 (匯出)</button>
+                <button onClick={handleExport} className="w-full bg-[#f5f5f5] text-[#0E1A40] py-4 rounded-2xl font-bold text-xs border border-gray-200 shadow-sm transition-all active:scale-95">🪄 產生並複製咒語</button>
                 <div className="relative">
-                  <textarea value={syncString} onChange={(e) => setSyncString(e.target.value)} placeholder="在此貼上咒語..." className="w-full h-24 bg-white/10 border border-white/20 rounded-2xl p-4 text-white text-[10px] font-mono focus:ring-1 ring-[#946A2D] outline-none" />
-                  <button onClick={handleImport} className="absolute bottom-2 right-2 bg-white text-[#0E1A40] px-4 py-2 rounded-xl font-bold text-[10px] shadow-md transition-all active:scale-90">施展咒語 (匯入)</button>
+                  <textarea value={syncString} onChange={(e) => setSyncString(e.target.value)} placeholder="在此貼上咒語..." className="w-full h-24 bg-gray-50 border border-gray-100 rounded-2xl p-4 text-[10px] font-mono outline-none" />
+                  <button onClick={handleImport} className="absolute bottom-2 right-2 bg-[#0E1A40] text-white px-4 py-2 rounded-xl font-bold text-[10px] shadow-md transition-all active:scale-90">匯入</button>
                 </div>
               </div>
             </div>
@@ -580,11 +604,6 @@ const App: React.FC = () => {
                   <textarea placeholder="魔法筆記 (文字備註欄)" value={editData.note} onChange={e => setEditData({ ...editData, note: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold h-24 border-none outline-none focus:ring-2 ring-[#0E1A40]/10" />
                 </>
               )}
-              {showModal === 'packing' && (
-                <div className="space-y-4">
-                  <input type="text" placeholder="準備項目名稱" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className="w-full bg-[#f5f5f5] p-5 rounded-2xl font-bold text-lg border-none outline-none focus:ring-2 ring-[#0E1A40]/10" />
-                </div>
-              )}
               {showModal === 'flight' && (
                 <>
                   <p className="text-[10px] font-bold text-gray-400 mb-1">搭乘巫師</p>
@@ -595,127 +614,6 @@ const App: React.FC = () => {
                     if (info) setEditData({ ...editData, ...info, flightNo: v });
                     else setEditData({ ...editData, flightNo: v });
                   }} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
-                  {editData.airline && (
-                    <div className="p-5 bg-gray-50 rounded-[2rem] border border-gray-100 animate-fade-in">
-                       <p className="text-[10px] font-bold text-[#946A2D] mb-2">{editData.airline} | {editData.flightNo}</p>
-                       <div className="flex justify-between items-center text-xl font-bold text-[#0E1A40]">
-                          <div><span className="block text-[10px] opacity-50">出發</span>{editData.depCity} {editData.depTime}</div>
-                          <Icons.Plane />
-                          <div className="text-right"><span className="block text-[10px] opacity-50">抵達</span>{editData.arrCity} {editData.arrTime}</div>
-                       </div>
-                       <p className="text-[9px] mt-2 font-bold opacity-40">航廈資訊: T{editData.depTerminal} ➜ T{editData.arrTerminal}</p>
-                    </div>
-                  )}
-                </>
-              )}
-              {showModal === 'stay' && (
-                <>
-                  <p className="text-[10px] font-bold text-gray-400 mb-1">入住巫師</p>
-                  {renderMultiMember(editData.persons || [], (v) => setEditData({ ...editData, persons: v }))}
-                  <input type="text" placeholder="飯店名稱" value={editData.hotelName} onChange={e => setEditData({ ...editData, hotelName: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-[10px] font-bold mb-1 block">入住日期</label><input type="date" value={editData.checkIn} onChange={e => setEditData({ ...editData, checkIn: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
-                    <div><label className="text-[10px] font-bold mb-1 block">退房日期</label><input type="date" value={editData.checkOut} onChange={e => setEditData({ ...editData, checkOut: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-[10px] font-bold mb-1 block">入住時間 (24h)</label><input type="time" value={editData.checkInTime} onChange={e => setEditData({ ...editData, checkInTime: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
-                    <div><label className="text-[10px] font-bold mb-1 block">退房時間 (24h)</label><input type="time" value={editData.checkOutTime} onChange={e => setEditData({ ...editData, checkOutTime: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="飯店地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
-                    <button onClick={async () => {
-                      if (!editData.address) return;
-                      setIsMagicLoading(true);
-                      const res = await magicalCorrectLocation(editData.address);
-                      setEditData({ ...editData, address: res });
-                      setIsMagicLoading(false);
-                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
-                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
-                    </button>
-                  </div>
-                  <textarea placeholder="飯店備註" value={editData.note} onChange={e => setEditData({ ...editData, note: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold h-20" />
-                </>
-              )}
-              {showModal === 'car' && (
-                <>
-                  <input type="text" placeholder="租車公司" value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-[10px] font-bold mb-1 block">取車日期</label><input type="date" value={editData.pickupDate} onChange={e => setEditData({ ...editData, pickupDate: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
-                    <div><label className="text-[10px] font-bold mb-1 block">還車日期</label><input type="date" value={editData.returnDate} onChange={e => setEditData({ ...editData, returnDate: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-[10px] font-bold mb-1 block">取車時間</label><input type="time" value={editData.pickupTime} onChange={e => setEditData({ ...editData, pickupTime: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
-                    <div><label className="text-[10px] font-bold mb-1 block">還車時間</label><input type="time" value={editData.returnTime} onChange={e => setEditData({ ...editData, returnTime: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="取車地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
-                    <button onClick={async () => {
-                      if (!editData.address) return;
-                      setIsMagicLoading(true);
-                      const res = await magicalCorrectLocation(editData.address);
-                      setEditData({ ...editData, address: res });
-                      setIsMagicLoading(false);
-                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
-                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
-                    </button>
-                  </div>
-                  <textarea placeholder="注意訂單事項" value={editData.note} onChange={e => setEditData({ ...editData, note: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold h-20" />
-                  <div className="flex gap-4 items-center">
-                    <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-white border-2 border-dashed border-gray-200 p-4 rounded-2xl flex flex-col items-center gap-2 text-gray-400 overflow-hidden">
-                      {editData.voucher ? <img src={editData.voucher} className="w-full h-12 object-cover rounded-lg" /> : <span className="text-[10px] font-bold">上傳訂單圖像</span>}
-                    </button>
-                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'car_voucher')} />
-                  </div>
-                </>
-              )}
-              {showModal === 'attraction' && (
-                <>
-                  <p className="text-[10px] font-bold text-gray-400 mb-1">參與巫師 (多選)</p>
-                  {renderMultiMember(editData.persons || [], (v) => setEditData({ ...editData, persons: v }))}
-                  <input type="text" placeholder="景點名稱" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-[10px] font-bold mb-1 block">預約日期</label><input type="date" value={editData.date} onChange={e => setEditData({ ...editData, date: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
-                    <div><label className="text-[10px] font-bold mb-1 block">預約時間 (24h)</label><input type="time" value={editData.time} onChange={e => setEditData({ ...editData, time: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" /></div>
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="地點/地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
-                    <button onClick={async () => {
-                      if (!editData.address) return;
-                      setIsMagicLoading(true);
-                      const res = await magicalCorrectLocation(editData.address);
-                      setEditData({ ...editData, address: res });
-                      setIsMagicLoading(false);
-                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
-                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-gray-400">上傳訂購憑證 (多檔)</label>
-                    <div className="flex flex-wrap gap-2">
-                      {editData.vouchers?.map((v: string, i: number) => (
-                        <div key={i} className="relative w-12 h-12 rounded-lg border overflow-hidden">
-                          <img src={v} className="w-full h-full object-cover" />
-                          <span className="absolute top-0 right-0 bg-black/60 text-white text-[8px] px-1">{i + 1}</span>
-                          <button onClick={() => setEditData({ ...editData, vouchers: editData.vouchers.filter((_: any, j: number) => i !== j) })} className="absolute inset-0 bg-red-500/50 text-white font-bold opacity-0 hover:opacity-100 transition-opacity">X</button>
-                        </div>
-                      ))}
-                      <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-300">＋</button>
-                    </div>
-                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'attraction_vouchers')} />
-                  </div>
-                </>
-              )}
-              {showModal === 'shopping' && (
-                <>
-                  <input type="text" placeholder="想買什麼？" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
-                  <div className="flex gap-4 items-center">
-                    <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-white border-2 border-dashed border-gray-200 p-8 rounded-2xl flex flex-col items-center gap-2 text-gray-400 overflow-hidden">
-                      {editData.photo ? <img src={editData.photo} className="w-full h-24 object-cover rounded-xl" /> : <span className="text-[10px] font-bold">上傳參考圖片</span>}
-                    </button>
-                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'shopping_photo')} />
-                  </div>
-                  <p className="text-[10px] font-bold text-gray-400 mb-1 mt-2">委託巫師</p>
-                  {renderMultiMember(editData.persons || [], (v) => setEditData({ ...editData, persons: v }))}
                 </>
               )}
               {showModal === 'expense' && (
@@ -752,7 +650,7 @@ const App: React.FC = () => {
                       </div>
                     ))}
                     <button onClick={() => {
-                      const avg = Math.floor(editData.amount / editData.payers.length);
+                      const avg = Math.floor(editData.amount / (editData.payers.length || 1));
                       setEditData({ ...editData, payers: editData.payers.map((p: any) => ({ ...p, amount: avg })) });
                     }} className="text-[8px] underline text-gray-400">平均分攤付款</button>
                   </div>
@@ -769,99 +667,9 @@ const App: React.FC = () => {
                       </div>
                     ))}
                     <button onClick={() => {
-                      const avg = Math.floor(editData.amount / editData.splitters.length);
+                      const avg = Math.floor(editData.amount / (editData.splitters.length || 1));
                       setEditData({ ...editData, splitters: editData.splitters.map((p: any) => ({ ...p, amount: avg })) });
                     }} className="text-[8px] underline text-gray-400">平均分攤支出</button>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-white border border-dashed p-4 rounded-2xl text-[10px] font-bold text-gray-400">
-                      {editData.receiptImage ? '✅ 明細已上傳' : '📸 拍攝/上傳明細'}
-                    </button>
-                    <input type="file" ref={fileInputRef} hidden accept="image/*" capture="environment" onChange={(e) => handleImageUpload(e, 'expense_receipt')} />
-                  </div>
-                </div>
-              )}
-              {showModal === 'stats' && (
-                <div className="space-y-12 pb-6 animate-fade-in overflow-y-auto max-h-[70vh]">
-                  {/* 團體支出統計 */}
-                  <div className="p-4 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                    <h4 className="serif text-center font-bold text-[#0E1A40] mb-4 flex items-center justify-center gap-2">
-                      <Icons.Ticket /> 團體開支分析
-                    </h4>
-                    {/* 團體總金額摘要 */}
-                    <div className="mb-6 p-4 bg-[#fcfdfd] border border-gray-100 rounded-2xl text-center">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">團體總金額</p>
-                      <div className="text-2xl font-bold text-[#0E1A40]">
-                        $ {Math.round(expenses.reduce((s, e) => s + (e.currency === 'JPY' ? e.amount * exchangeRate : e.amount), 0)).toLocaleString()}
-                      </div>
-                      <div className="text-[10px] text-gray-400 font-mono mt-1">
-                        ¥ {Math.round(expenses.reduce((s, e) => s + (e.currency === 'JPY' ? e.amount : e.amount / exchangeRate), 0)).toLocaleString()}
-                      </div>
-                    </div>
-                    <SimplePieChart 
-                      exchangeRate={exchangeRate}
-                      data={['食', '住', '用', '娛樂', '交通', '其他'].map((c, i) => ({ 
-                        label: c, 
-                        value: expenses.filter(e => e.category === c).reduce((s, e) => s + (e.currency === 'JPY' ? e.amount : e.amount / exchangeRate), 0),
-                        color: ['#0E1A40', '#946A2D', '#2C3E50', '#7a0105', '#ee463a', '#94a3b8'][i]
-                      }))} 
-                    />
-                  </div>
-
-                  {/* 個人支出統計 */}
-                  <div className="p-4 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                    <h4 className="serif text-center font-bold text-[#0E1A40] mb-4 flex items-center justify-center gap-2">
-                      <Icons.User /> {currentUser} 個人分攤
-                    </h4>
-                    {/* 個人總金額摘要 */}
-                    <div className="mb-6 p-4 bg-[#fcfdfd] border border-gray-100 rounded-2xl text-center">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">個人應付金額</p>
-                      <div className="text-2xl font-bold text-[#0E1A40]">
-                        $ {Math.round(expenses.reduce((s, e) => {
-                          const split = e.splitters.find(x => x.name === currentUser);
-                          return s + (split ? (e.currency === 'JPY' ? split.amount * exchangeRate : split.amount) : 0);
-                        }, 0)).toLocaleString()}
-                      </div>
-                      <div className="text-[10px] text-gray-400 font-mono mt-1">
-                        ¥ {Math.round(expenses.reduce((s, e) => {
-                          const split = e.splitters.find(x => x.name === currentUser);
-                          return s + (split ? (e.currency === 'JPY' ? split.amount : split.amount / exchangeRate) : 0);
-                        }, 0)).toLocaleString()}
-                      </div>
-                    </div>
-                    <SimplePieChart 
-                      exchangeRate={exchangeRate}
-                      data={['食', '住', '用', '娛樂', '交通', '其他'].map((c, i) => ({ 
-                        label: c, 
-                        value: expenses.filter(e => e.category === c).reduce((s, e) => {
-                          const split = e.splitters.find(x => x.name === currentUser);
-                          return s + (split ? (e.currency === 'JPY' ? split.amount : split.amount / exchangeRate) : 0);
-                        }, 0),
-                        color: ['#0E1A40', '#946A2D', '#2C3E50', '#7a0105', '#ee463a', '#94a3b8'][i]
-                      }))} 
-                    />
-                  </div>
-
-                  {/* 結餘清算 */}
-                  <div className="p-4 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                    <h4 className="serif text-center font-bold text-[#0E1A40] mb-6 flex items-center justify-center gap-2">
-                      <Icons.Wallet /> 魔法結餘清算
-                    </h4>
-                    <div className="space-y-3">
-                      {getSettlements().map((s, idx) => (
-                        <div key={idx} className="bg-gray-50 p-5 rounded-[1.5rem] flex justify-between items-center border border-dashed border-gray-200 shadow-sm">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-400 font-bold uppercase mb-1">付款流向</span>
-                            <span className="font-bold text-[#0E1A40] text-sm">{s.from} ➜ {s.to}</span>
-                          </div>
-                          <div className="text-right">
-                             <div className="text-sm font-bold text-[#0E1A40]">$ {Math.round(s.amount * exchangeRate).toLocaleString()}</div>
-                             <div className="text-[9px] text-gray-400 font-mono">¥ {Math.round(s.amount).toLocaleString()}</div>
-                          </div>
-                        </div>
-                      ))}
-                      {getSettlements().length === 0 && <p className="text-center text-[10px] text-gray-400 italic py-10">魔法契合，無須清償</p>}
-                    </div>
                   </div>
                 </div>
               )}
