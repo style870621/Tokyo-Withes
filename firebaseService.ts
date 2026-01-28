@@ -10,7 +10,7 @@ const firebaseConfig = {
   messagingSenderId: "3251055849",
   appId: "1:3251055849:web:21492ce4307c4f822d1478",
   measurementId: "G-BQBQLYYCYZ",
-  databaseURL: "https://tokyo-little-monster-default-rtdb.firebaseio.com"
+  databaseURL: "https://tokyo-little-monster-default-rtdb.firebaseio.com/"
 };
 
 let db: any;
