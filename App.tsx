@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Tab, BookingSubTab, ItineraryItem, FlightBooking, StayBooking, CarBooking, AttractionBooking, ShoppingItem, Expense } from './types';
 import { DATE_RANGE, MEMBERS, Icons, FLIGHT_DB, DEFAULT_PACKING } from './constants';
@@ -79,9 +78,8 @@ const App: React.FC = () => {
   const [packingChecked, setPackingChecked] = useState<Record<string, string[]>>(storage.get('packing_checked', {}));
   const [exchangeRate, setExchangeRate] = useState(0.215);
 
-  // --- 即時同步核心設定 ---
-  const roomId = 'tokyo-witches'; // 固定所有人的房間 ID
-  const [isLiveSync, setIsLiveSync] = useState(storage.get('magic_live_sync', true)); // 預設開啟
+  const roomId = 'tokyo-witches';
+  const [isLiveSync, setIsLiveSync] = useState(storage.get('magic_live_sync', true));
   const remoteUpdateRef = useRef(false);
 
   const [jpyInput, setJpyInput] = useState<string>('');
@@ -96,7 +94,6 @@ const App: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. 本地儲存
   useEffect(() => {
     storage.set('itinerary_muggle', itinerary);
     storage.set('flights_muggle', flights);
@@ -111,26 +108,21 @@ const App: React.FC = () => {
     storage.set('magic_live_sync', isLiveSync);
   }, [itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked, currentUser, isLiveSync]);
 
-  // 2. 即時同步：當本地資料變動時推送 (Debounced)
   useEffect(() => {
     if (!isLiveSync) return;
     if (remoteUpdateRef.current) {
       remoteUpdateRef.current = false;
       return;
     }
-
     const timer = setTimeout(() => {
       const allData = { itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked };
       pushToRoom(roomId, allData);
     }, 2000);
-
     return () => clearTimeout(timer);
   }, [itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked, isLiveSync]);
 
-  // 3. 即時同步：監聽雲端變動
   useEffect(() => {
     if (!isLiveSync) return;
-
     const unsubscribe = subscribeToRoom(roomId, (remoteData) => {
       remoteUpdateRef.current = true;
       if (remoteData.itinerary) setItinerary(remoteData.itinerary);
@@ -143,7 +135,6 @@ const App: React.FC = () => {
       if (remoteData.userPackingLists) setUserPackingLists(remoteData.userPackingLists);
       if (remoteData.packingChecked) setPackingChecked(remoteData.packingChecked);
     });
-
     return () => unsubscribe();
   }, [isLiveSync]);
 
@@ -204,48 +195,35 @@ const App: React.FC = () => {
     return settlements;
   };
 
-const saveModal = () => {
-  if (!editData) return;
-  const id = editData.id || crypto.randomUUID(); [span_1](start_span)// 為新項目產生唯一 ID[span_1](end_span)
-  const data = { ...editData, id };
-
-  [span_2](start_span)// 根據當前開啟的 Modal 類型決定更新哪份資料[span_2](end_span)
-  if (showModal === 'itinerary') {
-    const payload = { ...data, day: selectedDay };
-    setItinerary(prev => editData.id ? prev.map(x => x.id === id ? payload : x) : [...prev, payload]);
-  }
-  else if (showModal === 'flight') {
-    setFlights(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-  }
-  else if (showModal === 'stay') {
-    setStays(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-  }
-  else if (showModal === 'car') {
-    setCars(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-  }
-  else if (showModal === 'attraction') {
-    setAttractions(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-  }
-  else if (showModal === 'shopping') {
-    setShopping(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-  }
-  else if (showModal === 'packing') {
-    const list = userPackingLists[currentUser] || DEFAULT_PACKING;
-    const newList = editData.isNew ? [...list, editData.name] : list.map((x, i) => i === editData.index ? editData.name : x);
-    setUserPackingLists(prev => ({ ...prev, [currentUser]: newList }));
-  }
-  else if (showModal === 'expense') {
-    const payerSum = data.payers.reduce((s: number, p: any) => s + p.amount, 0);
-    const splitterSum = data.splitters.reduce((s: number, p: any) => s + p.amount, 0);
-    if (Math.abs(payerSum - data.amount) > 1 || Math.abs(splitterSum - data.amount) > 1) {
-      alert(`金額校驗不符！\n消費總額：${data.amount}\n付款總額：${payerSum}\n分攤總額：${splitterSum}`);
-      return;
+  const saveModal = () => {
+    if (!editData) return;
+    const id = editData.id || crypto.randomUUID();
+    const data = { ...editData, id };
+    if (showModal === 'itinerary') {
+      const payload = { ...data, day: selectedDay };
+      setItinerary(prev => editData.id ? prev.map(x => x.id === id ? payload : x) : [...prev, payload]);
     }
-    setExpenses(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, { ...data, createdAt: Date.now() }]);
-  }
- 
-  setShowModal(null); [span_3](start_span)// 儲存成功後關閉彈窗[span_3](end_span)
-};
+    else if (showModal === 'flight') setFlights(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+    else if (showModal === 'stay') setStays(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+    else if (showModal === 'car') setCars(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+    else if (showModal === 'attraction') setAttractions(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+    else if (showModal === 'shopping') setShopping(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+    else if (showModal === 'packing') {
+      const list = userPackingLists[currentUser] || DEFAULT_PACKING;
+      const newList = editData.isNew ? [...list, editData.name] : list.map((x, i) => i === editData.index ? editData.name : x);
+      setUserPackingLists(prev => ({ ...prev, [currentUser]: newList }));
+    }
+    else if (showModal === 'expense') {
+      const payerSum = data.payers.reduce((s: number, p: any) => s + p.amount, 0);
+      const splitterSum = data.splitters.reduce((s: number, p: any) => s + p.amount, 0);
+      if (Math.abs(payerSum - data.amount) > 1 || Math.abs(splitterSum - data.amount) > 1) {
+        alert(`金額校驗不符！\n消費總額：${data.amount}\n付款總額：${payerSum}\n分攤總額：${splitterSum}`);
+        return;
+      }
+      setExpenses(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, { ...data, createdAt: Date.now() }]);
+    }
+    setShowModal(null);
+  };
 
   const handleExport = () => {
     const fullData = { itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked };
@@ -311,25 +289,15 @@ const saveModal = () => {
                   {idx > 0 && (
                     <div className="ml-12 my-2 p-3 bg-white/50 rounded-2xl border border-dashed border-gray-200 flex items-center justify-between gap-3 text-[10px] font-bold text-gray-400">
                       <div className="flex items-center gap-2">
-                        <select 
-                          value={item.transportToNext?.mode || 'transit'} 
-                          onChange={(e) => {
+                        <select value={item.transportToNext?.mode || 'transit'} onChange={(e) => {
                             const mode = e.target.value as any;
                             setItinerary(prev => prev.map(it => it.id === item.id ? { ...it, transportToNext: { ...it.transportToNext!, mode } } : it));
-                          }}
-                          className="bg-transparent border-none outline-none text-[#946A2D] font-bold"
-                        >
+                          }} className="bg-transparent border-none outline-none text-[#946A2D] font-bold">
                           <option value="transit">🚇 大眾</option>
                           <option value="drive">🚗 駕車</option>
                           <option value="walk">🚶 步行</option>
                         </select>
-                        <input 
-                          type="text" 
-                          value={item.transportToNext?.duration || ''} 
-                          placeholder="時長"
-                          onChange={(e) => setItinerary(prev => prev.map(it => it.id === item.id ? { ...it, transportToNext: { ...it.transportToNext!, duration: e.target.value } } : it))}
-                          className="w-16 bg-transparent outline-none border-b border-gray-200 px-1 text-center"
-                        />
+                        <input type="text" value={item.transportToNext?.duration || ''} placeholder="時長" onChange={(e) => setItinerary(prev => prev.map(it => it.id === item.id ? { ...it, transportToNext: { ...it.transportToNext!, duration: e.target.value } } : it))} className="w-16 bg-transparent outline-none border-b border-gray-200 px-1 text-center" />
                         <button onClick={async () => {
                           const prev = sortedItinerary[idx - 1];
                           setIsMagicLoading(true);
@@ -338,11 +306,7 @@ const saveModal = () => {
                           setIsMagicLoading(false);
                         }} className="text-[#946A2D]"><Icons.Magic /></button>
                       </div>
-                      <a 
-                        href={getTransportLink(sortedItinerary[idx - 1].actualLocation, item.actualLocation, item.transportToNext?.mode || 'transit')} 
-                        target="_blank" 
-                        className="p-1.5 bg-[#0E1A40] text-white rounded-lg shadow-sm"
-                      >
+                      <a href={getTransportLink(sortedItinerary[idx - 1].actualLocation, item.actualLocation, item.transportToNext?.mode || 'transit')} target="_blank" className="p-1.5 bg-[#0E1A40] text-white rounded-lg shadow-sm">
                         <Icons.ExternalLink />
                       </a>
                     </div>
@@ -508,13 +472,10 @@ const saveModal = () => {
         {activeTab === 'settings' && (
           <div className="mt-6 animate-fade-in space-y-6">
             <div className="text-center"><div className="w-28 h-28 bg-[#946A2D]/20 rounded-full mx-auto flex items-center justify-center text-[#0E1A40] mb-4 border-8 border-white shadow-2xl"><Icons.User /></div><h2 className="serif text-3xl font-bold text-[#0E1A40]">{currentUser}</h2></div>
-            
             <div className="bg-white rounded-[2.5rem] p-6 border border-gray-100 shadow-sm space-y-4">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2">切換巫師身份</label>
               <div className="grid grid-cols-2 gap-3">{MEMBERS.map(m => (<button key={m} onClick={() => setCurrentUser(m)} className={`py-4 rounded-2xl font-bold text-sm transition-all ${currentUser === m ? 'bg-[#0E1A40] text-white shadow-xl border border-[#946A2D]' : 'bg-[#f5f5f5] text-[#0E1A40]'}`}>{m}</button>))}</div>
             </div>
-
-            {/* 優化後的即時同步魔法區塊 */}
             <div className="bg-[#0E1A40] rounded-[2.5rem] p-6 border border-[#946A2D]/30 shadow-xl space-y-4">
               <label className="text-[10px] font-bold text-[#946A2D] uppercase tracking-widest px-2 flex items-center gap-2"><Icons.Magic /> 團隊同步魔法 (Live Sync)</label>
               <div className="bg-white/5 p-4 rounded-2xl flex items-center justify-between border border-white/10">
@@ -522,18 +483,12 @@ const saveModal = () => {
                    <p className="text-[11px] text-white font-bold">魔法頻道：<span className="text-[#946A2D]">{roomId}</span></p>
                    <p className="text-[8px] text-white/40 mt-1 uppercase">自動同步模式已啟動</p>
                 </div>
-                <button 
-                  onClick={() => setIsLiveSync(!isLiveSync)} 
-                  className={`px-4 py-2 rounded-full text-[9px] font-bold shadow-lg transition-all active:scale-95 ${isLiveSync ? 'bg-[#946A2D] text-[#0E1A40]' : 'bg-gray-700 text-gray-300'}`}
-                >
+                <button onClick={() => setIsLiveSync(!isLiveSync)} className={`px-4 py-2 rounded-full text-[9px] font-bold shadow-lg transition-all active:scale-95 ${isLiveSync ? 'bg-[#946A2D] text-[#0E1A40]' : 'bg-gray-700 text-gray-300'}`}>
                   {isLiveSync ? '⚡️ 同步中' : '❌ 離線'}
                 </button>
               </div>
-              <p className="text-[9px] text-white/50 px-2 italic leading-relaxed">
-                * 這是專屬於你們的私密頻道。只要所有人都打開同步開關，行程、支出與行李狀態將會全自動跨裝置更新。
-              </p>
+              <p className="text-[9px] text-white/50 px-2 italic leading-relaxed">* 這是專屬於你們的私密頻道。只要所有人都打開同步開關，行程、支出與行李狀態將會全自動跨裝置更新。</p>
             </div>
-
             <div className="bg-white rounded-[2.5rem] p-6 border-l-8 border-[#0E1A40] shadow-sm space-y-4">
               <label className="text-[10px] font-bold text-[#0E1A40] uppercase tracking-widest px-2 flex items-center gap-2">🔮 魔法金鑰診斷</label>
               {(() => {
@@ -556,7 +511,6 @@ const saveModal = () => {
                 );
               })()}
             </div>
-
             <div className="bg-white rounded-[2.5rem] p-6 border border-gray-100 shadow-sm space-y-4">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 flex items-center gap-2">📦 備份咒語 (手動備份用)</label>
               <div className="flex flex-col gap-3">
@@ -629,6 +583,99 @@ const saveModal = () => {
                   }} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
                 </>
               )}
+              {showModal === 'stay' && (
+                <>
+                  <p className="text-[10px] font-bold text-gray-400 mb-1">入住巫師</p>
+                  {renderMultiMember(editData.persons || [], (v) => setEditData({ ...editData, persons: v }))}
+                  <input type="text" placeholder="飯店名稱" value={editData.hotelName} onChange={e => setEditData({ ...editData, hotelName: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-[10px] font-bold mb-1 block">入住日期</label><input type="date" value={editData.checkIn} onChange={e => setEditData({ ...editData, checkIn: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
+                    <div><label className="text-[10px] font-bold mb-1 block">退房日期</label><input type="date" value={editData.checkOut} onChange={e => setEditData({ ...editData, checkOut: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
+                  </div>
+                  <div className="relative">
+                    <input type="text" placeholder="飯店地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
+                    <button onClick={async () => {
+                      if (!editData.address) return;
+                      setIsMagicLoading(true);
+                      const res = await magicalCorrectLocation(editData.address);
+                      setEditData({ ...editData, address: res, mapQuery: res });
+                      setIsMagicLoading(false);
+                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
+                    </button>
+                  </div>
+                  <textarea placeholder="飯店備註" value={editData.note} onChange={e => setEditData({ ...editData, note: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold h-20" />
+                </>
+              )}
+              {showModal === 'car' && (
+                <>
+                  <input type="text" placeholder="租車公司" value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-[10px] font-bold mb-1 block">取車日期</label><input type="date" value={editData.pickupDate} onChange={e => setEditData({ ...editData, pickupDate: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
+                    <div><label className="text-[10px] font-bold mb-1 block">還車日期</label><input type="date" value={editData.returnDate} onChange={e => setEditData({ ...editData, returnDate: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold text-xs" /></div>
+                  </div>
+                  <div className="relative">
+                    <input type="text" placeholder="取車地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
+                    <button onClick={async () => {
+                      if (!editData.address) return;
+                      setIsMagicLoading(true);
+                      const res = await magicalCorrectLocation(editData.address);
+                      setEditData({ ...editData, address: res, mapQuery: res });
+                      setIsMagicLoading(false);
+                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
+                    </button>
+                  </div>
+                  <div className="flex gap-4 items-center">
+                    <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-white border-2 border-dashed border-gray-200 p-4 rounded-2xl flex flex-col items-center gap-2 text-gray-400">
+                      {editData.voucher ? <img src={editData.voucher} className="w-full h-12 object-cover rounded-lg" /> : <span className="text-[10px] font-bold">上傳租車憑證</span>}
+                    </button>
+                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'car_voucher')} />
+                  </div>
+                </>
+              )}
+              {showModal === 'attraction' && (
+                <>
+                  <p className="text-[10px] font-bold text-gray-400 mb-1">參與巫師</p>
+                  {renderMultiMember(editData.persons || [], (v) => setEditData({ ...editData, persons: v }))}
+                  <input type="text" placeholder="景點名稱" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
+                  <div className="relative">
+                    <input type="text" placeholder="景點地點/地址" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold pr-32" />
+                    <button onClick={async () => {
+                      if (!editData.address) return;
+                      setIsMagicLoading(true);
+                      const res = await magicalCorrectLocation(editData.address);
+                      setEditData({ ...editData, address: res, mapQuery: res });
+                      setIsMagicLoading(false);
+                    }} className="absolute right-2 top-2 bottom-2 bg-[#0E1A40] text-white px-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                      <Icons.Magic /><span className="text-[9px] font-bold">魔法校正</span>
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-400">上傳憑證 (可多張)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {editData.vouchers?.map((v: string, i: number) => (
+                        <div key={i} className="relative w-12 h-12 rounded-lg border overflow-hidden"><img src={v} className="w-full h-full object-cover" /></div>
+                      ))}
+                      <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-300">＋</button>
+                    </div>
+                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'attraction_vouchers')} />
+                  </div>
+                </>
+              )}
+              {showModal === 'shopping' && (
+                <>
+                  <input type="text" placeholder="想買什麼？" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className="w-full bg-[#f5f5f5] p-4 rounded-2xl font-bold" />
+                  <div className="flex gap-4 items-center">
+                    <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-white border-2 border-dashed border-gray-200 p-8 rounded-2xl flex flex-col items-center gap-2 text-gray-400">
+                      {editData.photo ? <img src={editData.photo} className="w-full h-24 object-cover rounded-xl" /> : <span className="text-[10px] font-bold">上傳參考圖片</span>}
+                    </button>
+                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'shopping_photo')} />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-400 mb-1 mt-2">委託巫師</p>
+                  {renderMultiMember(editData.persons || [], (v) => setEditData({ ...editData, persons: v }))}
+                </>
+              )}
               {showModal === 'expense' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -655,9 +702,9 @@ const saveModal = () => {
                     {MEMBERS.map(m => (
                       <div key={m} className="flex items-center gap-2">
                         <button onClick={() => {
-                          const isPayer = editData.payers.some((p: any) => p.name === m);
-                          const nextPayers = isPayer ? editData.payers.filter((p: any) => p.name !== m) : [...editData.payers, { name: m, amount: 0 }];
-                          setEditData({ ...editData, payers: nextPayers });
+                            const isPayer = editData.payers.some((p: any) => p.name === m);
+                            const nextPayers = isPayer ? editData.payers.filter((p: any) => p.name !== m) : [...editData.payers, { name: m, amount: 0 }];
+                            setEditData({ ...editData, payers: nextPayers });
                         }} className={`w-16 py-2 rounded-xl text-[10px] font-bold transition-all ${editData.payers.some((p: any) => p.name === m) ? 'bg-[#0E1A40] text-white shadow-md' : 'bg-white border text-gray-300'}`}>{m}</button>
                         {editData.payers.some((p: any) => p.name === m) && <input type="number" value={editData.payers.find((p: any) => p.name === m).amount} onChange={e => setEditData({ ...editData, payers: editData.payers.map((p: any) => p.name === m ? { ...p, amount: Number(e.target.value) } : p) })} className="flex-1 bg-white p-2 rounded-xl text-xs border focus:border-[#0E1A40] outline-none" />}
                       </div>
