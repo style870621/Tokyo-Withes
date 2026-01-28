@@ -204,35 +204,48 @@ const App: React.FC = () => {
     return settlements;
   };
 
-  const saveModal = () => {
-    if (!editData) return;
-    const id = editData.id || crypto.randomUUID();
-    const data = { ...editData, id };
+const saveModal = () => {
+  if (!editData) return;
+  const id = editData.id || crypto.randomUUID(); [span_1](start_span)// 為新項目產生唯一 ID[span_1](end_span)
+  const data = { ...editData, id };
 
-    if (showModal === 'itinerary') {
-      const payload = { ...data, day: selectedDay };
-      setItinerary(prev => editData.id ? prev.map(x => x.id === id ? payload : x) : [...prev, payload]);
-    } else if (showModal === 'flight') setFlights(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'stay') setStays(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'car') setCars(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'attraction') setAttractions(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'shopping') setShopping(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'packing') {
-      const list = userPackingLists[currentUser] || DEFAULT_PACKING;
-      const newList = editData.isNew ? [...list, editData.name] : list.map((x: string, i: number) => i === editData.index ? editData.name : x);
-      setUserPackingLists(prev => ({ ...prev, [currentUser]: newList }));
+  [span_2](start_span)// 根據當前開啟的 Modal 類型決定更新哪份資料[span_2](end_span)
+  if (showModal === 'itinerary') {
+    const payload = { ...data, day: selectedDay };
+    setItinerary(prev => editData.id ? prev.map(x => x.id === id ? payload : x) : [...prev, payload]);
+  }
+  else if (showModal === 'flight') {
+    setFlights(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+  }
+  else if (showModal === 'stay') {
+    setStays(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+  }
+  else if (showModal === 'car') {
+    setCars(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+  }
+  else if (showModal === 'attraction') {
+    setAttractions(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+  }
+  else if (showModal === 'shopping') {
+    setShopping(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+  }
+  else if (showModal === 'packing') {
+    const list = userPackingLists[currentUser] || DEFAULT_PACKING;
+    const newList = editData.isNew ? [...list, editData.name] : list.map((x, i) => i === editData.index ? editData.name : x);
+    setUserPackingLists(prev => ({ ...prev, [currentUser]: newList }));
+  }
+  else if (showModal === 'expense') {
+    const payerSum = data.payers.reduce((s: number, p: any) => s + p.amount, 0);
+    const splitterSum = data.splitters.reduce((s: number, p: any) => s + p.amount, 0);
+    if (Math.abs(payerSum - data.amount) > 1 || Math.abs(splitterSum - data.amount) > 1) {
+      alert(`金額校驗不符！\n消費總額：${data.amount}\n付款總額：${payerSum}\n分攤總額：${splitterSum}`);
+      return;
     }
-    else if (showModal === 'expense') {
-      const payerSum = data.payers.reduce((s: number, p: any) => s + p.amount, 0);
-      const splitterSum = data.splitters.reduce((s: number, p: any) => s + p.amount, 0);
-      if (Math.abs(payerSum - data.amount) > 1 || Math.abs(splitterSum - data.amount) > 1) {
-        alert(`金額校驗不符！\n消費總額：${data.amount}\n付款總額：${payerSum}\n分攤總額：${splitterSum}`);
-        return;
-      }
-      setExpenses(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, { ...data, createdAt: Date.now() }]);
-    }
-    setShowModal(null);
-  };
+    setExpenses(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, { ...data, createdAt: Date.now() }]);
+  }
+ 
+  setShowModal(null); [span_3](start_span)// 儲存成功後關閉彈窗[span_3](end_span)
+};
 
   const handleExport = () => {
     const fullData = { itinerary, flights, stays, cars, attractions, shopping, expenses, userPackingLists, packingChecked };
