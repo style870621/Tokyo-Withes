@@ -195,19 +195,23 @@ const App: React.FC = () => {
     return settlements;
   };
 
-  const saveModal = () => {
-    if (!editData) return;
-    const id = editData.id || crypto.randomUUID();
-    const data = { ...editData, id };
-    if (showModal === 'itinerary') {
-      const payload = { ...data, day: selectedDay };
-      setItinerary(prev => editData.id ? prev.map(x => x.id === id ? payload : x) : [...prev, payload]);
-    }
-    else if (showModal === 'flight') setFlights(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'stay') setStays(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'car') setCars(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'attraction') setAttractions(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
-    else if (showModal === 'shopping') setShopping(prev => editData.id ? prev.map(x => x.id === id ? data : x) : [...prev, data]);
+ const saveModal = () => {
+  if (!editData) return;
+ 
+  // 修正：明確區分是「編輯模式」還是「新增模式」
+  const isEditing = editData.id && editData.id !== '';
+  const finalId = isEditing ? editData.id : crypto.randomUUID();
+  const data = { ...editData, id: finalId };
+
+  if (showModal === 'itinerary') {
+    const payload = { ...data, day: selectedDay };
+    setItinerary(prev => isEditing ? prev.map(x => x.id === finalId ? payload : x) : [...prev, payload]);
+  }
+  else if (showModal === 'flight') setFlights(prev => isEditing ? prev.map(x => x.id === finalId ? data : x) : [...prev, data]);
+  else if (showModal === 'stay') setStays(prev => isEditing ? prev.map(x => x.id === finalId ? data : x) : [...prev, data]);
+  else if (showModal === 'car') setCars(prev => isEditing ? prev.map(x => x.id === finalId ? data : x) : [...prev, data]);
+  else if (showModal === 'attraction') setAttractions(prev => isEditing ? prev.map(x => x.id === finalId ? data : x) : [...prev, data]);
+  else if (showModal === 'shopping') setShopping(prev => isEditing ? prev.map(x => x.id === finalId ? data : x) : [...prev, data]);
     else if (showModal === 'packing') {
       const list = userPackingLists[currentUser] || DEFAULT_PACKING;
       const newList = editData.isNew ? [...list, editData.name] : list.map((x, i) => i === editData.index ? editData.name : x);
