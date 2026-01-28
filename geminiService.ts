@@ -1,9 +1,23 @@
-
 import { GoogleGenAI } from "@google/genai";
-
 /**
- * 測試連線並回傳詳細錯誤
- * @google/genai rule: Always use new GoogleGenAI({apiKey: process.env.API_KEY})
+新增：獲取 API 金鑰狀態診斷
+ */
+export const getApiKeyStatus = () => {
+  const apiKey = process.env.API_KEY || "";
+  if (!apiKey) {
+    return { ok: false, msg: "未偵測到金鑰，請檢查環境變數設定。" };
+  }
+  return {
+    ok: true,
+    msg: "金鑰已載入",
+    len: apiKey.length,
+    prefix: apiKey.slice(0, 3),
+    suffix: apiKey.slice(-3)
+  };
+};
+/**
+測試連線並回傳詳細錯誤
+@google/genai rule: Always use new GoogleGenAI({apiKey: process.env.API_KEY})
  */
 export const testConnection = async (): Promise<{ ok: boolean; msg: string }> => {
   // Create instance right before call as per guidelines
@@ -21,14 +35,13 @@ export const testConnection = async (): Promise<{ ok: boolean; msg: string }> =>
   } catch (error: any) {
     console.error("[Gemini Debug] 測試失敗:", error);
     const errMsg = error.message || "";
-    if (errMsg.includes("API key not valid")) return { ok: false, msg: "❌ 金鑰無效：請檢查環境變數設定" };
-    return { ok: false, msg: `❌ 錯誤: ${errMsg.substring(0, 50)}...` };
+    if (errMsg.includes("API key not valid")) return { ok: false, msg: ":x: 金鑰無效：請檢查環境變數設定" };
+    return { ok: false, msg: `:x: 錯誤: ${errMsg.substring(0, 50)}...` };
   }
 };
-
 /**
- * 景點名稱校正
- * @google/genai rule: Use gemini-3-flash-preview for basic text tasks
+景點名稱校正
+@google/genai rule: Use gemini-3-flash-preview for basic text tasks
  */
 export const magicalCorrectLocation = async (query: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -47,10 +60,9 @@ export const magicalCorrectLocation = async (query: string): Promise<string> => 
     return query;
   }
 };
-
 /**
- * 估算交通時間
- * @google/genai rule: Use gemini-3-flash-preview for basic text tasks
+估算交通時間
+@google/genai rule: Use gemini-3-flash-preview for basic text tasks
  */
 export const estimateTransportTime = async (origin: string, destination: string, mode: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
